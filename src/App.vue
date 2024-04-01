@@ -457,6 +457,7 @@ export default {
                 } else {
                   console.log("registerCountOrValues deve essere un array per la funzione 16.");
                 }
+                // this.manageStartCharging();
                 break;
 
               default:

@@ -13,10 +13,10 @@
 __|___________|__
 |___________________|
         </pre>
-Terminal ready
+{{ `${this.getTimestamp()} Terminal ready` }}
       </div>
       <div v-for="(message, index) in messages" :key="index" :class="`message-${message.type}`">
-        {{ message.content }}
+        {{ `${getTimestamp()} ${message.content}` }}
       </div>
     </div>
 </template>
@@ -51,6 +51,9 @@ export default {
     }
   },
   methods: {
+    getTimestamp() {
+      return  `${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`;
+    },
     scrollToBottom() {
       const element = this.$refs.terminal;
       if (element) {
