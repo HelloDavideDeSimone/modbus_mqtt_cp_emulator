@@ -36,24 +36,37 @@
 
     <div class="my-3 row">
       <div class="status-box col">
-        <div class="rfid-value">system state: {{ systemState }}</div>
-        <div class="rfid-value">Gun state: {{ gunState }}</div>
+        <div class="rfid-value">system state: {{ systemStateText }}
+          <i :class="[systemStateIcon, { 'blink-animation': systemState === 3 }]"></i>
+        </div>
+        <div class="rfid-value">Gun state: {{ gunState }}
+          <i :class="[gunState === 'Connect to EV' ? 'fas fa-charging-station' : 'fas fa-car', 'status-icon']"></i>
+        </div>
         <div class="rfid-value">fault: {{ faultCode }}</div>
       </div>
 
       <div class="rfid-box col">
         <div class="rfid-value">RFID: {{ rfid }}</div>
         <div class="rfid-actions">
-          <button class="btn btn-primary" @click="swipeRFID">Simula Swipe RFID</button>
-          <button class="btn btn-secondary" @click="resetRFIDregister">Reset Registri RFID</button>
+          <button class="btn btn-primary w-100" @click="swipeRFID">Simula Swipe RFID</button>
+          <button class="btn btn-secondary w-100" @click="resetRFIDregister">Reset Registri RFID</button>
         </div>
       </div>
 
 
       <div class="actions-box col">
-        <button v-if="gunState == 'Disconnect to EV'" class="btn btn-primary" @click="connectEV">Simulate EV connection</button>
-        <button v-else class="btn btn-primary" @click="disconnectEV">Simulate EV disconnection</button>
+
+        <div class="charging-mode-select">
+          <select :disabled="gunState != 'Disconnect to EV'" v-model="isThreePhase" @change="toggleChargingMode" class="form-select w-100">
+            <option :value="false">Ricarica Monofase</option>
+            <option :value="true">Ricarica Trifase</option>
+          </select>
+        </div>
+        
+        <button v-if="gunState == 'Disconnect to EV'" class="btn btn-primary w-100" @click="connectEV">Simulate EV connection</button>
+        <button v-else class="btn btn-primary w-100" @click="disconnectEV">Simulate EV disconnection</button>
       </div>
+
     </div>
 
     <table class="table table-striped">
@@ -65,9 +78,9 @@
         <th scope="col">Register Id</th>
         <th scope="col">Read/Write</th>
       </tr>
-      <tr v-for="(item, index) in modbusRegisters" :key="index">
+      <tr v-for="(item, index) in modbusRegisters" :key="index" :class="{ 'updated-animation': item.isUpdated }">
         <td>{{ item.parameter }}</td>
-        <td :class="{ 'updated-animation': item.isUpdated }">
+        <td >
           <input v-if="!item.options" :disabled="item.disabled" @change="saveToStorage(item)" v-model="item.value" :type="item?.type === 'string' ? 'text' : 'number'"  :class="{'form-control': true, 'border-info': item.readWrite.includes('W')}"/>
           <select v-else  class="form-select" @change="saveToStorage(item)" v-model="item.value">
             <option v-for="option in item.options" :value="option.value" :key="option.text">{{ option?.text ?? 'NONE' }}</option>
@@ -95,40 +108,47 @@ export default {
   mixins: [hm10Logic],
   data() {
     return {
+      intervalMeter: 0,
+      isThreePhase: false,
       showAccordion: true,
       mqttClient: null,
       mqttIsConnected: false,
       mqttMessages: [],
       mqttSettings: {},
       defaultMqttSettings: {
-        protocol: 'wss', // default protocol
-        host: 'test.mosquitto.org', // default host
-        port: 8081, // default port for WS
+        protocol: 'ws', // default protocol
+        host: 'localhost', // default host
+        port: 8888, // default port for WS
         options: {
           username: null,
           password: null
         },
-        qos: 0,
+        qos: 2,
         requestTopic: '/modbus/PR-01_LOCAL/request',
         responseTopic: '/modbus/PR-01_LOCAL/response'
       },
       defaultModbusRegisters: [
-            { parameter: 'Phase Voltage of L1', value: 220, registerAddress: '0000', readWrite: 'R' , isUpdated: true, disabled: false},
-            { parameter: 'Phase Voltage of L2', value: 223, registerAddress: '0001', readWrite: 'R' , isUpdated: false, disabled: false},
-            { parameter: 'Phase Voltage of L3', value: 222, registerAddress: '0002', readWrite: 'R' , isUpdated: false, disabled: false},
-            { parameter: 'Max Current', value: 160, registerAddress: '0003', readWrite: 'R' , isUpdated: false, disabled: false},
+            { parameter: 'Phase Voltage of L1', value: 2200, registerAddress: '0000', readWrite: 'R' , isUpdated: true, disabled: false},
+            { parameter: 'Phase Voltage of L2', value: 2230, registerAddress: '0001', readWrite: 'R' , isUpdated: false, disabled: false},
+            { parameter: 'Phase Voltage of L3', value: 2220, registerAddress: '0002', readWrite: 'R' , isUpdated: false, disabled: false},
+            { parameter: 'Max Current', value: 320, registerAddress: '0003', readWrite: 'R' , isUpdated: false, disabled: false},
             { parameter: 'Charging State', value: 0, registerAddress: '0004', readWrite: 'R' , isUpdated: false, disabled: false},
             { parameter: 'Limit Current', value: 0, registerAddress: '0005', readWrite: 'W/R' , isUpdated: false, disabled: false},
             { parameter: 'Charging Current of L1', value: 0, registerAddress: '002B', readWrite: 'R' , isUpdated: false, disabled: false},
             { parameter: 'Charging Current of L2', value: 0, registerAddress: '002C', readWrite: 'R' , isUpdated: false, disabled: false},
             { parameter: 'Charging Current of L3', value: 0, registerAddress: '002D', readWrite: 'R' , isUpdated: false, disabled: false},
-            { parameter: 'Charging Power of L1', value: 0, registerAddress: '002E', readWrite: 'R' , isUpdated: false, disabled: false},
-            { parameter: 'Charging Power of L2', value: 0, registerAddress: '0030', readWrite: 'R' , isUpdated: false, disabled: false},
-            { parameter: 'Charging Power of L3', value: 0, registerAddress: '0032', readWrite: 'R' , isUpdated: false, disabled: false},
-            { parameter: 'Total Power', value: 0, registerAddress: '0034', readWrite: 'R' , isUpdated: false, disabled: false},
+            { parameter: 'Charging Power of L1 1', value: 0, registerAddress: '002E', readWrite: 'R' , isUpdated: false, disabled: false},
+            { parameter: 'Charging Power of L1 2', value: 0, registerAddress: '002F', readWrite: 'R' , isUpdated: false, disabled: false},
+            { parameter: 'Charging Power of L2 1', value: 0, registerAddress: '0030', readWrite: 'R' , isUpdated: false, disabled: false},
+            { parameter: 'Charging Power of L2 2', value: 0, registerAddress: '0031', readWrite: 'R' , isUpdated: false, disabled: false},
+            { parameter: 'Charging Power of L3 1', value: 0, registerAddress: '0032', readWrite: 'R' , isUpdated: false, disabled: false},
+            { parameter: 'Charging Power of L3 2', value: 0, registerAddress: '0033', readWrite: 'R' , isUpdated: false, disabled: false},
+            { parameter: 'Total Power 1', value: 0, registerAddress: '0034', readWrite: 'R' , isUpdated: false, disabled: false},
+            { parameter: 'Total Power 2', value: 0, registerAddress: '0035', readWrite: 'R' , isUpdated: false, disabled: false},
             { parameter: 'Max Current of Charging Plug', value: 0, registerAddress: '0036', readWrite: 'R' , isUpdated: false, disabled: false},
             { parameter: 'Charging Energy', value: 0, registerAddress: '0037', readWrite: 'R' , isUpdated: false, disabled: false},
-            { parameter: 'Meter Energy', value: 0, registerAddress: '0038', readWrite: 'R' , isUpdated: false, disabled: false},
+            { parameter: 'Meter Energy 1', value: 0, registerAddress: '0038', readWrite: 'R' , isUpdated: false, disabled: false},
+            { parameter: 'Meter Energy 2', value: 0, registerAddress: '0039', readWrite: 'R' , isUpdated: false, disabled: false},
             { parameter: 'Charge Time', value: 0, registerAddress: '003A', readWrite: 'R' , isUpdated: false, disabled: false},
             { parameter: 'Current Time - Year', value: 0, registerAddress: '003B', readWrite: 'W/R' , isUpdated: false, disabled: true},
             { parameter: 'Current Time - Month', value: 0, registerAddress: '003C', readWrite: 'W/R' , isUpdated: false, disabled: true},
@@ -138,7 +158,6 @@ export default {
             { parameter: 'Current Time - Second', value: 0, registerAddress: '0040', readWrite: 'W/R' , isUpdated: false, disabled: true},
             { parameter: 'Modbus Address', value: 0, registerAddress: '0041', readWrite: 'W/R' , isUpdated: false, disabled: false},
             { parameter: 'Reset Charging Station', value: 0, registerAddress: '0042', readWrite: 'W' , isUpdated: false, disabled: false},
-            { parameter: 'Start/Stop Charging', value: 0, registerAddress: '0043', readWrite: 'W/R' , isUpdated: false, disabled: false},
             { parameter: 'Fault Code', value: 0, registerAddress: '0044', readWrite: 'R' , isUpdated: false, options: [
               { value: 0, text: 'No Faults Detected' },
               { value: 11, text: 'CP voltage anomaly' },
@@ -174,13 +193,12 @@ export default {
               { value: 0, text: 'Disconnect to EV' },
               { value: 1, text: 'Connect to EV' },
             ], disabled: false},
-            { parameter: 'Firmware Version', value: 0, registerAddress: '0047', readWrite: 'R' , isUpdated: false, disabled: false},
+            { parameter: 'Firmware Version', value: 0, registerAddress: '0047', readWrite: 'R' , isUpdated: false, disabled: true},
             { parameter: 'EVSE Serial Number', value: '', registerAddress: '0057', readWrite: 'R' , isUpdated: false, disabled: false},
-            { parameter: 'RFID Number 0', value: 12598, registerAddress: '005F', readWrite: 'R' , isUpdated: false, disabled: false},
-            { parameter: 'RFID Number 1', value: 17204, registerAddress: '006F', readWrite: 'R' , isUpdated: false, disabled: false},
-            { parameter: 'RFID Number 2', value: 13380, registerAddress: '007F', readWrite: 'R' , isUpdated: false, disabled: false},
-            { parameter: 'RFID Number 3', value: 16952, registerAddress: '008F', readWrite: 'R' , isUpdated: false, disabled: false},
-            { parameter: 'Current Time - Second', value: 0, registerAddress: '0040', readWrite: 'W/R' , isUpdated: false, disabled: false},
+            { parameter: 'RFID Number 0', value: 0, registerAddress: '005F', readWrite: 'R' , isUpdated: false, disabled: false},
+            { parameter: 'RFID Number 1', value: 0, registerAddress: '006F', readWrite: 'R' , isUpdated: false, disabled: false},
+            { parameter: 'RFID Number 2', value: 0, registerAddress: '007F', readWrite: 'R' , isUpdated: false, disabled: false},
+            { parameter: 'RFID Number 3', value: 0, registerAddress: '008F', readWrite: 'R' , isUpdated: false, disabled: false},
             { parameter: 'Modbus Address', value: 1, registerAddress: '0041', readWrite: 'W/R' , isUpdated: false, disabled: false},
             { parameter: 'Reset Charging Station', value: 0, registerAddress: '0042', readWrite: 'W' , isUpdated: false, disabled: false},
             { parameter: 'Start/Stop Charging', value: 0, registerAddress: '0043', readWrite: 'W/R' , isUpdated: false, options: [
@@ -188,10 +206,6 @@ export default {
               { value: 1, text: 'Start charging' },
               { value: 2, text: 'Stop charging' },
             ], disabled: false},
-            { parameter: 'Fault Code', value: 0, registerAddress: '0044', readWrite: 'R' , isUpdated: false, disabled: false},
-            { parameter: 'System State', value: 0, registerAddress: '0045', readWrite: 'R' , isUpdated: false, disabled: false},
-            { parameter: 'Gun State', value: 0, registerAddress: '0046', readWrite: 'W/R' , isUpdated: false, disabled: false},
-            { parameter: 'Firmware Version', value: 43447423, registerAddress: '0047', readWrite: 'R', type: 'string' , isUpdated: false, disabled: true},
         ],
         modbusRegisters: []
     };
@@ -210,13 +224,34 @@ export default {
     this.loadFromStorage();
     this.updateCurrentTime();
     setInterval(this.updateCurrentTime, 1000); // Aggiorna i campi ora corrente ogni minuto
+    this.resetRFIDregister()
   },
   computed: {
+    systemStateIcon() {
+      const icons = [
+        'fas fa-pause-circle', // Standby
+        'fas fa-plug', // Connected
+        'fas fa-play-circle', // Starting
+        'fas fa-battery-full', // Charging
+        'fas fa-exclamation-circle', // Start fail
+        'fas fa-stop-circle', // Charge end
+        'fas fa-exclamation-triangle', // Fault state
+        'fas fa-calendar-check', // Reservation status
+        'fas fa-wifi', // WIFI configuring
+        'fas fa-lock', // OCPP reserved
+        'fas fa-sync-alt' // Upgrading
+      ];
+      return icons[this.systemState];
+    },
     faultCode() {
       let register = this.modbusRegisters.find(r => r.registerAddress == '0044')
       return register.options.find( r => r.value == register.value)?.text
     },
     systemState() {
+      let register = this.modbusRegisters.find(r => r.registerAddress == '0045')
+      return register.options.find( r => r.value == register.value)?.value
+    },
+    systemStateText() {
       let register = this.modbusRegisters.find(r => r.registerAddress == '0045')
       return register.options.find( r => r.value == register.value)?.text
     },
@@ -381,7 +416,7 @@ export default {
 
       try {
         console.log("URL", url)
-        this.mqttMessages.push({ type: 'info', content: `Trying to connecto to MQTT Broker: ${url}` });
+        this.mqttMessages.push({ type: 'info', content: `${this.getTimestamp()} Trying to connecto to MQTT Broker: ${url}` });
 
         options['username'] = options?.username || null;
         options['password'] = options?.password || null;
@@ -392,7 +427,7 @@ export default {
       this.mqttClient.on('connect', () => {
         this.showAccordion = false;
         this.mqttIsConnected = true;
-        this.mqttMessages.push({ type: 'info', content: `Connected to MQTT Broker` });
+        this.mqttMessages.push({ type: 'info', content: `${this.getTimestamp()} Connected to MQTT Broker` });
         this.subscribeToTopic(requestTopic);
         this.subscribeToTopic(responseTopic);
       });
@@ -408,7 +443,7 @@ export default {
 
       this.mqttClient.on('error', (err) => {
         this.mqttIsConnected = false;
-        this.mqttMessages.push({ type: 'error', content: `Connection to MQTT Broker failed: ${err.message}` });
+        this.mqttMessages.push({ type: 'error', content: `${this.getTimestamp()} Connection to MQTT Broker failed: ${err.message}` });
         console.error('Connection to MQTT Broker failed:', err);
       });
 
@@ -419,18 +454,119 @@ export default {
     subscribeToTopic(topic) {
       this.mqttClient.subscribe(topic, { qos: this.mqttSettings.qos }, (err) => {
         if (!err) {
-          this.mqttMessages.push({ type: 'info', content: `Subscribed to topic "${topic}"` });
+          this.mqttMessages.push({ type: 'info', content: `${this.getTimestamp()} Subscribed to topic "${topic}"` });
         } else {
-          this.mqttMessages.push({ type: 'error', content: `Could not subscribe to topic "${topic}":  ${err.message}` });
+          this.mqttMessages.push({ type: 'error', content: `${this.getTimestamp()} Could not subscribe to topic "${topic}":  ${err.message}` });
           console.error(`Could not subscribe to topic "${topic}":`, err);
         }
       });
     },
+    stopCharge() {      
+      console.log("STOP CHARGE")
+      const statusRegister = this.modbusRegisters.find(r => r.registerAddress == '0045')
+      const chargingRegister = this.modbusRegisters.find(r => r.registerAddress == '0004')
+      
+      const chargingPowerOfL11 = this.modbusRegisters.find(r => r.registerAddress == '002E')
+      const chargingPowerOfL12 = this.modbusRegisters.find(r => r.registerAddress == '002F')
+      const chargingPowerOfL21 = this.modbusRegisters.find(r => r.registerAddress == '0030')
+      const chargingPowerOfL22 = this.modbusRegisters.find(r => r.registerAddress == '0031')
+      const chargingPowerOfL31 = this.modbusRegisters.find(r => r.registerAddress == '0032')
+      const chargingPowerOfL32 = this.modbusRegisters.find(r => r.registerAddress == '0033')
+
+      const totalPower1 = this.modbusRegisters.find(r => r.registerAddress == '0034')
+      const totalPower2 = this.modbusRegisters.find(r => r.registerAddress == '0035')
+
+      // stop charging
+      statusRegister.value = 5
+      chargingRegister.value = 0
+
+      chargingPowerOfL11.value = 0
+      chargingPowerOfL12.value = 0
+      chargingPowerOfL21.value = 0
+      chargingPowerOfL22.value = 0
+      chargingPowerOfL31.value = 0
+      chargingPowerOfL32.value = 0
+
+      totalPower1.value = 0
+      totalPower2.value = 0
+      clearInterval(this.intervalMeter);
+
+      // simulate EV disconnection
+      setTimeout(() => {
+        this.resetRFIDregister();
+        statusRegister.value = 0
+        this.disconnectEV()
+      }, 3000);
+    },
+    manageStartStopCharging(mqttMessage, startIndex) {
+      console.log("manage start Stop charging")
+
+
+      
+      let statusRegister = this.modbusRegisters.find(r => r.registerAddress == '0045')
+      let chargingRegister = this.modbusRegisters.find(r => r.registerAddress == '0004')
+
+      if(mqttMessage.registerCountOrValues[1] == 1) {
+        // start charging
+        console.log("START CHARGING", mqttMessage)
+        this.resetRFIDregister();
+        this.modbusRegisters[startIndex].value = 0
+
+        statusRegister.value = 2
+        setTimeout(() => {
+          statusRegister.value = 3
+        }, 3000);
+
+        chargingRegister.value = 1
+
+        const chargingPowerOfL11 = this.modbusRegisters.find(r => r.registerAddress == '002E')
+        const chargingPowerOfL12 = this.modbusRegisters.find(r => r.registerAddress == '002F')
+        const chargingPowerOfL21 = this.modbusRegisters.find(r => r.registerAddress == '0030')
+        const chargingPowerOfL22 = this.modbusRegisters.find(r => r.registerAddress == '0031')
+        const chargingPowerOfL31 = this.modbusRegisters.find(r => r.registerAddress == '0032')
+        const chargingPowerOfL32 = this.modbusRegisters.find(r => r.registerAddress == '0033')
+
+        const totalPower1 = this.modbusRegisters.find(r => r.registerAddress == '0034')
+        const totalPower2 = this.modbusRegisters.find(r => r.registerAddress == '0035')
+        const limitCurrentRegister = this.modbusRegisters.find(r => r.registerAddress == '0005')
+        const limitInWatt = (limitCurrentRegister.value /10) * 220 * (this.isThreePhase ? 3 : 1)
+
+        console.log("limitInWatt", limitInWatt, limitCurrentRegister.value);
+        this.writeToRegister(chargingPowerOfL11.registerAddress , 0)
+        this.writeToRegister(chargingPowerOfL12.registerAddress , limitInWatt)
+        if(this.isThreePhase){
+          this.writeToRegister(chargingPowerOfL11.registerAddress , 0)
+          this.writeToRegister(chargingPowerOfL12.registerAddress , limitInWatt/3)
+          this.writeToRegister(chargingPowerOfL21.registerAddress , 0)
+          this.writeToRegister(chargingPowerOfL22.registerAddress , limitInWatt/3)
+
+          this.writeToRegister(chargingPowerOfL31.registerAddress , 0)
+          this.writeToRegister(chargingPowerOfL32.registerAddress , limitInWatt/3)
+        }
+
+        this.writeToRegister(totalPower1.registerAddress , 0)
+        this.writeToRegister(totalPower2.registerAddress , limitInWatt)
+        this.intervalMeter = setInterval(() => {
+          const meterEnergy2 = this.modbusRegisters.find(r => r.registerAddress == '0039');
+          const limitWattPerSecond = limitInWatt / 3600; // Converti watt/ora in watt/secondo
+          const wattsTransferredIn5Seconds = limitWattPerSecond * 5; // Calcola i watt trasferiti in 5 secondi
+          meterEnergy2.value += wattsTransferredIn5Seconds; // Aggiungi i kWh trasferiti
+          meterEnergy2.value = Math.round(meterEnergy2.value);
+          this.writeToRegister(meterEnergy2.registerAddress, meterEnergy2.value);
+        }, 5000);
+
+
+
+      } else if (mqttMessage.registerCountOrValues[1] == 2) {
+        // stop charging
+        this.stopCharge()
+      }
+    },
     handleMqttMessage(topic, message) {
       if(topic !== this.mqttSettings.responseTopic) {
-        this.mqttMessages.push({ type: 'received', content: `Received from ${topic}: ${message}` });
+        this.mqttMessages.push({ type: 'received', content: `${this.getTimestamp()} Received from ${topic}: ${message}` });
         const mqttMessage = this.parseModbusString(message)
-        console.log(mqttMessage)
+        console.log(message, mqttMessage)
         if(!mqttMessage) return;
         if(Number(mqttMessage.serialDeviceId) == this.modbusRegisters.find(el => el.parameter == 'Modbus Address').value) {
           const startIndex = this.modbusRegisters.findIndex(reg => parseInt(reg.registerAddress, 16) + 1 == mqttMessage.firstRegister);
@@ -447,6 +583,12 @@ export default {
               case 16: // Funzione di scrittura su più registri
                 // Assicurati che registerCountOrValues sia un array di valori
                 if (Array.isArray(mqttMessage.registerCountOrValues)) {
+                  if(mqttMessage.registerCountOrValues[0] == 1 && mqttMessage.firstRegister == 6) {
+                    this.modbusRegisters[startIndex].value =mqttMessage.registerCountOrValues[1];
+                    this.publishMessage(this.mqttSettings.responseTopic, `${mqttMessage.cookie} OK`);
+                    this.saveToStorage(this.modbusRegisters[startIndex]);
+                    break;
+                  }
                   mqttMessage.registerCountOrValues.forEach((value, index) => {
                     if ((startIndex + index) < this.modbusRegisters.length) {
                       this.modbusRegisters[startIndex + index].value = value.toString();
@@ -457,7 +599,13 @@ export default {
                 } else {
                   console.log("registerCountOrValues deve essere un array per la funzione 16.");
                 }
-                // this.manageStartCharging();
+
+                if(mqttMessage.firstRegister == 68) {
+                  this.manageStartStopCharging(mqttMessage, startIndex);
+                }
+
+
+
                 break;
 
               default:
@@ -470,14 +618,17 @@ export default {
         }
       }
     },
+    getTimestamp() {
+      return  `${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`;
+    },
     publishMessage(topic, message) {
       if (this.mqttClient) {
         this.mqttClient.publish(topic, message, { qos: this.mqttSettings.qos }, (err) => {
           if (!err) {
-            this.mqttMessages.push({ type: 'sent', content: `Sent to ${topic}: ${message}` });
+            this.mqttMessages.push({ type: 'sent', content: `${this.getTimestamp()} Sent to ${topic}: ${message}` });
           } else {
             console.error(`Could not send message to topic "${topic}":`, err);
-            this.mqttMessages.push({ type: 'error', content: `Could not send message to topic "${topic}:  ${err.message}` });
+            this.mqttMessages.push({ type: 'error', content: `${this.getTimestamp()} Could not send message to topic "${topic}:  ${err.message}` });
 
           }
         });
@@ -487,7 +638,7 @@ export default {
       if (this.mqttClient) {
         this.mqttClient.end();
         this.mqttIsConnected = false;
-        this.mqttMessages.push({ type: 'info', content: 'Disconnected from MQTT Broker' });
+        this.mqttMessages.push({ type: 'info', content: `${this.getTimestamp()} Disconnected from MQTT Broker` });
         console.log('Disconnected from MQTT Broker', this.mqttClient);
       }
     },
@@ -574,7 +725,7 @@ th, td {
 
 @keyframes flashAnimation {
   0%, 100% { background-color: transparent; }
-  50% { background-color: yellow; }
+  30%, 50%, 80% { background-color: yellow; }
 }
 
 
@@ -648,12 +799,12 @@ th, td {
 .rfid-value, .status-value {
   font-size: 1.2em;
   color: #333; /* Colore del testo per i valori */
-  margin: 5px 0; /* Margine per separare i valori */
+  margin: 0px 8px; /* Margine per separare i valori */
 }
 
 /* Stili per le azioni */
 .rfid-actions, .actions-box {
-  margin-top: 20px; /* Spazio sopra i bottoni */
+  margin-top: 10px; /* Spazio sopra i bottoni */
 }
 
 .rfid-actions button, .actions-box button {
@@ -696,6 +847,32 @@ th, td {
   flex: 1; /* Ogni box prenderà lo stesso spazio */
   min-width: 250px; /* Larghezza minima per evitare che diventino troppo stretti */
   margin: 10px; /* Spazio tra i box */
+}
+
+
+/* Stili per lo switch di selezione della modalità di ricarica */
+.charging-mode-switch {
+  margin-top: 20px; /* Spazio sopra lo switch */
+}
+
+.charging-mode-switch input[type="checkbox"] {
+  /* Personalizza lo stile dello switch se necessario */
+}
+
+.charging-mode-switch label {
+  margin-left: 8px; /* Spazio tra lo switch e la label */
+}
+
+
+
+@keyframes blink {
+  10%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.blink-animation {
+  color: green;
+  animation: blink 2s linear infinite;
 }
 </style>
 

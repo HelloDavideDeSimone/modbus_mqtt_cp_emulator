@@ -1,6 +1,7 @@
 <template>
+  <div class="terminal-container">
     <input type="range" min="100" max="700" v-model="terminalHeight" class="slider">
-    <div class="terminal" :style="{ height: terminalHeight + 'px' }" ref="terminal">
+    <div class="terminal" :style="{ height: terminalHeight + 'px' }" ref="terminal" @scroll="checkScroll">
       <div class="message-info">
         <pre>
           <h3>Charging Point Emulator</h3>   ___________
@@ -13,12 +14,14 @@
 __|___________|__
 |___________________|
         </pre>
-{{ `${this.getTimestamp()} Terminal ready` }}
+{{ `${this.terminalReadyTimestamp} Terminal ready` }}
       </div>
       <div v-for="(message, index) in messages" :key="index" :class="`message-${message.type}`">
-        {{ `${getTimestamp()} ${message.content}` }}
+        {{ message.content }}
       </div>
+      <button v-if="!isScrolledToBottom" @click="scrollToBottom" class="scroll-to-bottom-btn">Scroll to Bottom</button>
     </div>
+  </div>
 </template>
 
 <script>
@@ -29,10 +32,13 @@ export default {
     if (savedHeight) {
       this.terminalHeight = savedHeight;
     }
+    this.scrollToBottom();
   },
   data() {
     return {
-      terminalHeight: 200
+      terminalHeight: 200,
+      terminalReadyTimestamp: `${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`,
+      isScrolledToBottom: true,
     };
   },
   props: {
@@ -46,25 +52,24 @@ export default {
       immediate: true,
       deep: true,
       handler() {
+      if (this.isScrolledToBottom) {
         this.$nextTick(this.scrollToBottom);
       }
     }
+    }
   },
   methods: {
-    getTimestamp() {
-      return  `${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`;
-    },
     scrollToBottom() {
-      const element = this.$refs.terminal;
-      if (element) {
-        // Calcola la distanza dal basso
-        const scrollDistanceFromBottom = element.scrollHeight - element.scrollTop - element.clientHeight;
-        // Se la distanza dal basso è piccola (ad esempio, meno di un certo valore di pixel), allora si procede con l'autoscroll.
-        // Puoi regolare il valore '10' in base alle tue esigenze.
-        if (scrollDistanceFromBottom <= 50) {
-          element.scrollTop = element.scrollHeight;
-        }
-      }
+      this.$nextTick(() => {
+        const terminal = this.$refs.terminal;
+        terminal.scrollTop = terminal.scrollHeight;
+      });
+    },
+    checkScroll() {
+      const terminal = this.$refs.terminal;
+      const scrollPosition = terminal.scrollTop + terminal.clientHeight;
+      const bottomPosition = terminal.scrollHeight;
+      this.isScrolledToBottom = (bottomPosition - scrollPosition) < 5;
     }
   }
 }
@@ -76,7 +81,7 @@ export default {
 }
 
 .message-sent {
-  color: rgb(87, 87, 255);
+  color: rgb(83, 117, 255);
 }
 
 .message-info {
@@ -134,6 +139,16 @@ export default {
   height: 25px;
   background: #4CAF50;
   cursor: pointer;
+}
+
+.terminal-container {
+  position: relative; 
+}
+.scroll-to-bottom-btn {
+  position: absolute; 
+  bottom: 10px;
+  right: 10px; 
+  z-index: 100; 
 }
 
 </style>
