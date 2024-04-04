@@ -156,7 +156,6 @@ export default {
             { parameter: 'Current Time - Hour', value: 0, registerAddress: '003E', readWrite: 'W/R' , isUpdated: false, disabled: true},
             { parameter: 'Current Time - Minute', value: 0, registerAddress: '003F', readWrite: 'W/R' , isUpdated: false, disabled: true},
             { parameter: 'Current Time - Second', value: 0, registerAddress: '0040', readWrite: 'W/R' , isUpdated: false, disabled: true},
-            { parameter: 'Modbus Address', value: 0, registerAddress: '0041', readWrite: 'W/R' , isUpdated: false, disabled: false},
             { parameter: 'Reset Charging Station', value: 0, registerAddress: '0042', readWrite: 'W' , isUpdated: false, disabled: false},
             { parameter: 'Fault Code', value: 0, registerAddress: '0044', readWrite: 'R' , isUpdated: false, options: [
               { value: 0, text: 'No Faults Detected' },
