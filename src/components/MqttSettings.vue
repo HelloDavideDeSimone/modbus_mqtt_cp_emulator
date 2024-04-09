@@ -10,9 +10,10 @@
                       <div class="mb-3">
                         <label for="mqttProtocol" class="form-label">Protocol</label>
                         <select class="form-select" id="mqttProtocol" v-model="mqttSettings.protocol">
-                          <option value="mqtt" disabled>mqtt (TCP)</option>
                           <option value="ws">ws (WebSocket)</option>
                           <option value="wss">wss (WebSocket Secure)</option>
+                          <option value="mqtt">mqtt (TCP)</option>
+                          <option value="mqtts">mqtts (TCP Secure)</option>
                         </select>
                       </div>
                       <div class="mb-3">

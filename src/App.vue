@@ -11,7 +11,12 @@
               <div class="status-indicator" :class="{ 'is-connected': mqttIsConnected, 'is-disconnected': !mqttIsConnected }">
               {{ mqttIsConnected ? 'MQTT Connected' : 'MQTT Disconnected' }}
             </div>
-            <div>
+            <div class="d-flex justify-content-between align-items-center">
+              <div class="form-check form-switch me-4">
+                <input class="form-check-input" type="checkbox" id="ignoreOtherModbusIds" v-model="ignoreOtherModbusIds">
+                <label class="form-check-label" for="ignoreOtherModbusIds">Ignore other Modbus IDs</label>
+              </div>
+              
               <button class="btn btn-warning me-2 " @click="clearTerminal">Clean Terminal</button>
               <button class="btn btn-danger" @click="resetSettings">Reset to default values</button>
             </div>
@@ -29,7 +34,7 @@
           </button>
 
           <div v-if="showAccordion" class="accordion">
-            <mqtt-settings :settings="mqttSettings" @save="handleSaveSettings" :mqttIsConnected="mqttIsConnected" @disconnectFromMqttBroker="disconnectFromMqttBroker" @connectToMqttBroker="connectToMqttBroker" @publishMessage="m => publishMessage(m.topic, m.message)"></mqtt-settings>
+            <mqtt-settings :settings="mqttSettings" @save="handleSaveSettings" :mqttIsConnected="mqttIsConnected" @disconnectFromMqttBroker="disconnectFromMqttBrokerWS" @connectToMqttBroker="connectMqttWS" @publishMessage="m => publishMessageWS(m.topic, m.message)"></mqtt-settings>
           </div>
       </div>
     </div>
@@ -108,6 +113,11 @@ export default {
   mixins: [hm10Logic],
   data() {
     return {
+      ignoreOtherModbusIds: true,
+      wsPort: process.env.VUE_APP_WS_MQTT_MIDDLEWARE_PORT,
+      wsHost: process.env.VUE_APP_WS_MQTT_MIDDLEWARE_HOST,
+      hasTriedToConnect: false,
+      ws: null,
       intervalMeter: 0,
       isThreePhase: false,
       showAccordion: true,
@@ -148,7 +158,7 @@ export default {
             { parameter: 'Max Current of Charging Plug', value: 0, registerAddress: '0036', readWrite: 'R' , isUpdated: false, disabled: false},
             { parameter: 'Charging Energy', value: 0, registerAddress: '0037', readWrite: 'R' , isUpdated: false, disabled: false},
             { parameter: 'Meter Energy 1', value: 0, registerAddress: '0038', readWrite: 'R' , isUpdated: false, disabled: false},
-            { parameter: 'Meter Energy 2', value: 0, registerAddress: '0039', readWrite: 'R' , isUpdated: false, disabled: false},
+            { parameter: 'Meter Energy 2', value: 6430, registerAddress: '0039', readWrite: 'R' , isUpdated: false, disabled: false},
             { parameter: 'Charge Time', value: 0, registerAddress: '003A', readWrite: 'R' , isUpdated: false, disabled: false},
             { parameter: 'Current Time - Year', value: 0, registerAddress: '003B', readWrite: 'W/R' , isUpdated: false, disabled: true},
             { parameter: 'Current Time - Month', value: 0, registerAddress: '003C', readWrite: 'W/R' , isUpdated: false, disabled: true},
@@ -222,8 +232,9 @@ export default {
   mounted() {
     this.loadFromStorage();
     this.updateCurrentTime();
-    setInterval(this.updateCurrentTime, 1000); // Aggiorna i campi ora corrente ogni minuto
-    this.resetRFIDregister()
+    setInterval(this.updateCurrentTime, 1000);
+    this.resetRFIDregister();
+    this.connectToMiddleware();
   },
   computed: {
     systemStateIcon() {
@@ -393,7 +404,6 @@ export default {
       register.isUpdated = true;
       setTimeout(() => (register.isUpdated = false), 900);
     },
-
     loadFromStorage() {
         this.modbusRegisters.forEach(register => {
             const savedValue = localStorage.getItem(register.registerAddress);
@@ -459,6 +469,90 @@ export default {
           console.error(`Could not subscribe to topic "${topic}":`, err);
         }
       });
+    },
+    connectMqttWS() {
+      if (!this.ws || this.ws.readyState > 1) {
+        this.mqttMessages.push({ type: 'error', content: `${this.getTimestamp()} WebSocket not connected...` });
+        this.connectToMiddleware(true);
+        // this.ws.close();
+      } 
+      if (this.ws && this.ws.readyState == 1) {
+        this.sendWebSocketMessage({ action: 'connectMqtt', settings: this.mqttSettings });
+      }
+    },
+    publishMessageWS(topic, message) {
+      this.sendWebSocketMessage({ action: 'publish', topic, message });
+    },
+    subscribeToTopicWS(topic) {
+      this.sendWebSocketMessage({ action: 'subscribe', topic });
+    },
+    sendWebSocketMessage(data) {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify(data));
+      } else {
+        console.error('WebSocket non connesso.');
+        this.mqttMessages.push({ type: 'error', content: `${this.getTimestamp()} WebSocket not connected` });
+      }
+    },
+    handleIncomingMessage(data) {
+      console.log("handleIncomingMessage", data)
+      switch(data.action) {
+        case 'mqttConnected':
+          this.mqttIsConnected = true;
+          this.showAccordion = false;
+          this.mqttMessages.push({ type: 'info', content: `${this.getTimestamp()} Connected to MQTT Broker` });
+          break;
+        case 'message':
+          this.handleMqttMessage(data.topic, data.message);
+          break;
+        case 'terminal-message':
+          this.mqttMessages.push({ type: data.type, content: data.content });
+          break;
+        case 'error':
+          this.mqttIsConnected = false;
+          this.mqttMessages.push({ type: data.type, content: data.content });
+          break;
+
+      }
+    },
+    connectToMiddleware(connectMqtt = false) {
+      if (this.ws && this.ws.readyState == 1) {
+        console.log('WebSocket already connected');
+        return;
+        // this.ws.close();
+      }
+      const wsUrl = `ws://${this.wsHost}:${this.wsPort}`;
+      this.ws = new WebSocket(wsUrl);
+
+      this.ws.onopen = () => {
+        console.log('Connessione WebSocket stabilita');
+        if(connectMqtt) {
+          this.sendWebSocketMessage({ action: 'connectMqtt', settings: this.mqttSettings });
+        }
+        this.mqttMessages.push({ type: 'ws', content: `${this.getTimestamp()} WebSocket connection Estabilished` });
+        this.ws.onmessage = (message) => {
+          const data = JSON.parse(message.data);
+          this.handleIncomingMessage(data);
+        };
+        this.ws.onerror = (error) => {
+          console.error('Errore WebSocket:', error);
+          // Considera di implementare una logica di riconnessione o di gestione degli errori qui
+        };
+
+        this.ws.onclose = (event) => {
+          this.mqttMessages.push({ type: 'ws', content: `${this.getTimestamp()} WebSocket connection Closed` });
+          this.mqttIsConnected = false;
+          console.log('Connessione WebSocket chiusa', event);
+          if(this.hasTriedToConnect == false) {
+            setTimeout(() => {
+              this.mqttMessages.push({ type: 'ws', content: `${this.getTimestamp()} WebSocket Retry to connect...` });
+              this.connectToMiddleware()
+              this.hasTriedToConnect = true
+
+            }, 5000);
+          }
+        };
+      };
     },
     stopCharge() {      
       console.log("STOP CHARGE")
@@ -562,12 +656,15 @@ export default {
       }
     },
     handleMqttMessage(topic, message) {
+      console.log("handleMqttMessage", topic, message)
       if(topic !== this.mqttSettings.responseTopic) {
-        this.mqttMessages.push({ type: 'received', content: `${this.getTimestamp()} Received from ${topic}: ${message}` });
         const mqttMessage = this.parseModbusString(message)
-        console.log(message, mqttMessage)
-        if(!mqttMessage) return;
+        if(!mqttMessage) {
+          console.error("NO MQTT MESSAGE")
+          return;
+        }
         if(Number(mqttMessage.serialDeviceId) == this.modbusRegisters.find(el => el.parameter == 'Modbus Address').value) {
+          this.mqttMessages.push({ type: 'received', content: `${this.getTimestamp()} Received from ${topic}: ${message}` });
           const startIndex = this.modbusRegisters.findIndex(reg => parseInt(reg.registerAddress, 16) + 1 == mqttMessage.firstRegister);
           let valuesToReturn = '';
           if (startIndex !== -1) {
@@ -576,7 +673,8 @@ export default {
                 for (let i = 0; i < mqttMessage.registerCountOrValues && (startIndex + i) < this.modbusRegisters.length; i++) {
                   valuesToReturn += ` ${(this.modbusRegisters[startIndex + i].value)}`;
                 }
-                this.publishMessage(this.mqttSettings.responseTopic, `${mqttMessage.cookie} OK${valuesToReturn}`);
+                console.log("publishMessageWS", this.mqttSettings.responseTopic, `${mqttMessage.cookie} OK${valuesToReturn}`);
+                this.publishMessageWS(this.mqttSettings.responseTopic, `${mqttMessage.cookie} OK${valuesToReturn}`);
                 break;
 
               case 16: // Funzione di scrittura su più registri
@@ -584,7 +682,7 @@ export default {
                 if (Array.isArray(mqttMessage.registerCountOrValues)) {
                   if(mqttMessage.registerCountOrValues[0] == 1 && mqttMessage.firstRegister == 6) {
                     this.modbusRegisters[startIndex].value =mqttMessage.registerCountOrValues[1];
-                    this.publishMessage(this.mqttSettings.responseTopic, `${mqttMessage.cookie} OK`);
+                    this.publishMessageWS(this.mqttSettings.responseTopic, `${mqttMessage.cookie} OK`);
                     this.saveToStorage(this.modbusRegisters[startIndex]);
                     break;
                   }
@@ -594,7 +692,7 @@ export default {
                       this.saveToStorage(this.modbusRegisters[startIndex + index]); // Salva il nuovo valore nel localStorage
                     }
                   });
-                  this.publishMessage(this.mqttSettings.responseTopic, `${mqttMessage.cookie} OK`);
+                  this.publishMessageWS(this.mqttSettings.responseTopic, `${mqttMessage.cookie} OK`);
                 } else {
                   console.log("registerCountOrValues deve essere un array per la funzione 16.");
                 }
@@ -614,13 +712,18 @@ export default {
           } else {
             console.log("Indice di partenza non valido.");
           }
+        } else {
+          if(!this.ignoreOtherModbusIds) {
+            this.mqttMessages.push({ type: 'received', content: `${this.getTimestamp()} Received from ${topic}: ${message} [modbus id unrecognized!]` });
+
+          }
         }
       }
     },
     getTimestamp() {
       return  `${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`;
     },
-    publishMessage(topic, message) {
+    publishMessage_deprecated(topic, message) {
       if (this.mqttClient) {
         this.mqttClient.publish(topic, message, { qos: this.mqttSettings.qos }, (err) => {
           if (!err) {
@@ -633,13 +736,10 @@ export default {
         });
       }
     },
-    disconnectFromMqttBroker() {
-      if (this.mqttClient) {
-        this.mqttClient.end();
+    disconnectFromMqttBrokerWS() {
         this.mqttIsConnected = false;
-        this.mqttMessages.push({ type: 'info', content: `${this.getTimestamp()} Disconnected from MQTT Broker` });
         console.log('Disconnected from MQTT Broker', this.mqttClient);
-      }
+        this.sendWebSocketMessage({ action: 'disconnectMqtt', settings: this.mqttSettings });
     },
     clearTerminal() {
       this.mqttMessages = []; 

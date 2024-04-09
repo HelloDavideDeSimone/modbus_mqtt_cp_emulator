@@ -88,6 +88,10 @@ export default {
   color: rgb(251, 251, 255);
 }
 
+.message-ws {
+  color: rgb(246, 170, 255);
+}
+
 .message-error {
   color: rgb(220, 24, 24);
 }
