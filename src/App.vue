@@ -158,7 +158,7 @@ export default {
             { parameter: 'Max Current of Charging Plug', value: 0, registerAddress: '0036', readWrite: 'R' , isUpdated: false, disabled: false},
             { parameter: 'Charging Energy', value: 0, registerAddress: '0037', readWrite: 'R' , isUpdated: false, disabled: false},
             { parameter: 'Meter Energy 1', value: 0, registerAddress: '0038', readWrite: 'R' , isUpdated: false, disabled: false},
-            { parameter: 'Meter Energy 2', value: 6430, registerAddress: '0039', readWrite: 'R' , isUpdated: false, disabled: false},
+            { parameter: 'Meter Energy 2', value: 0, registerAddress: '0039', readWrite: 'R' , isUpdated: false, disabled: false},
             { parameter: 'Charge Time', value: 0, registerAddress: '003A', readWrite: 'R' , isUpdated: false, disabled: false},
             { parameter: 'Current Time - Year', value: 0, registerAddress: '003B', readWrite: 'W/R' , isUpdated: false, disabled: true},
             { parameter: 'Current Time - Month', value: 0, registerAddress: '003C', readWrite: 'W/R' , isUpdated: false, disabled: true},
@@ -643,7 +643,7 @@ export default {
           const meterEnergy2 = this.modbusRegisters.find(r => r.registerAddress == '0039');
           const limitWattPerSecond = limitInWatt / 3600; // Converti watt/ora in watt/secondo
           const wattsTransferredIn5Seconds = limitWattPerSecond * 5; // Calcola i watt trasferiti in 5 secondi
-          meterEnergy2.value += wattsTransferredIn5Seconds; // Aggiungi i kWh trasferiti
+          meterEnergy2.value = wattsTransferredIn5Seconds + Number(meterEnergy2.value); // Aggiungi i kWh trasferiti
           meterEnergy2.value = Math.round(meterEnergy2.value);
           this.writeToRegister(meterEnergy2.registerAddress, meterEnergy2.value);
         }, 5000);
