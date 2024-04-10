@@ -52,7 +52,8 @@
       <div class="rfid-box col">
         <div class="rfid-value">RFID: {{ rfid }}</div>
         <div class="rfid-actions">
-          <button class="btn btn-primary w-100" @click="swipeRFID">Simula Swipe RFID</button>
+          <button class="btn btn-primary w-100" @click="swipeRFID1">Simula Swipe RFID 1</button>
+          <button class="btn btn-primary w-100" @click="swipeRFID2">Simula Swipe RFID 2</button>
           <button class="btn btn-secondary w-100" @click="resetRFIDregister">Reset Registri RFID</button>
         </div>
       </div>
@@ -419,7 +420,7 @@ export default {
       let systemRegister = this.modbusRegisters.find(r => r.registerAddress == '0045')
       systemRegister.value = 0
     },
-    swipeRFID(){
+    swipeRFID1(){
       const rfidValues = [
         { parameter: 'RFID Number 0', value: 12598, registerAddress: '005F', readWrite: 'R', isUpdated: false, disabled: false },
         { parameter: 'RFID Number 1', value: 17204, registerAddress: '006F', readWrite: 'R', isUpdated: false, disabled: false },
@@ -428,7 +429,19 @@ export default {
       ];
 
       rfidValues.forEach(rfid => {
-        // Assumi che questa funzione invii i valori al dispositivo o al servizio.
+        this.writeToRegister(rfid.registerAddress, rfid.value);
+      });
+
+    },
+    swipeRFID2(){
+      const rfidValues = [
+        { parameter: 'RFID Number 0', value: 12358, registerAddress: '005F', readWrite: 'R', isUpdated: false, disabled: false },
+        { parameter: 'RFID Number 1', value: 17477, registerAddress: '006F', readWrite: 'R', isUpdated: false, disabled: false },
+        { parameter: 'RFID Number 2', value: 12868, registerAddress: '007F', readWrite: 'R', isUpdated: false, disabled: false },
+        { parameter: 'RFID Number 3', value: 16952, registerAddress: '008F', readWrite: 'R', isUpdated: false, disabled: false },
+      ];
+
+      rfidValues.forEach(rfid => {
         this.writeToRegister(rfid.registerAddress, rfid.value);
       });
 
