@@ -115,7 +115,7 @@ export default {
     return {
       ignoreOtherModbusIds: true,
       wsPort: process.env.VUE_APP_WS_MQTT_MIDDLEWARE_PORT,
-      wsHost: process.env.VUE_APP_WS_MQTT_MIDDLEWARE_HOST,
+      wsHost: window.location.hostname,
       hasTriedToConnect: false,
       ws: null,
       intervalMeter: 0,
