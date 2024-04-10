@@ -17,7 +17,7 @@
                 <label class="form-check-label" for="ignoreOtherModbusIds">Ignore other Modbus IDs</label>
               </div>
               
-              <button class="btn btn-warning me-2 " @click="clearTerminal">Clean Terminal</button>
+              <button class="btn btn-warning" @click="clearTerminal">Clean Terminal</button>
             </div>
 
             </div>
