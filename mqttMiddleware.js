@@ -2,8 +2,7 @@ const WebSocket = require('ws');
 const mqtt = require('mqtt');
 require('dotenv').config();
 const wss = new WebSocket.Server({
-    port: process.env.VUE_APP_WS_MQTT_MIDDLEWARE_PORT, 
-    host: process.env.VUE_APP_WS_MQTT_MIDDLEWARE_HOST 
+    port: process.env.VUE_APP_WS_MQTT_MIDDLEWARE_PORT
 });
 
 
