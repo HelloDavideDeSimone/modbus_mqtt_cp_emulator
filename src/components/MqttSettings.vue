@@ -57,11 +57,16 @@
                     <label for="mqttTopic" class="form-label">Topic Response</label>
                     <input type="text" class="form-control" id="responseMqttTopic" v-model="mqttSettings.responseTopic">
                   </div>
-                  <button class="btn btn-primary" @click="saveSettings">Save Settings</button>
-                  <button class="btn btn-success ms-2" :disabled="mqttIsConnected" @click="connectToMqttBroker">Connect</button>
-                  <button class="btn btn-danger ms-2" :disabled="!mqttIsConnected" @click="disconnectFromMqttBroker">Disconnect</button>
-                  <button class="btn btn-secondary ms-2" :disabled="!mqttIsConnected" @click="publishMessage({topic: mqttSettings.responseTopic, message: 'Hello MQTT'})">Send Test Message</button>
 
+
+                  <div class="d-flex align-items-center">
+                    <div class="input-group">
+                      <button class="btn btn-success" :disabled="mqttIsConnected" @click="connectToMqttBroker">Connect</button>
+                      <button class="btn btn-danger ms-2" :disabled="!mqttIsConnected" @click="disconnectFromMqttBroker">Disconnect</button>
+                      <input type="text" class="form-control ms-2" id="mqttMessage" placeholder="Enter message" v-model="mqttSettings.testMessage" style="max-width: 40%;">
+                      <button class="btn btn-secondary" :disabled="!mqttIsConnected" @click="publishMessage({topic: mqttSettings.responseTopic, message: mqttSettings.testMessage})">Send Test Message</button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -75,7 +80,9 @@
     },
     data() {
       return {
-        mqttSettings: {}
+        mqttSettings: {
+          testMessage: 'Hello MQTT'
+        }
       };
     },
     created() {
@@ -86,7 +93,7 @@
         this.$emit('save', this.mqttSettings);
       },
       connectToMqttBroker() {
-        this.$emit('connectToMqttBroker', true);
+        this.$emit('connectToMqttBroker', this.mqttSettings);
       },
       disconnectFromMqttBroker() {
         this.$emit('disconnectFromMqttBroker', true);

@@ -18,7 +18,6 @@
               </div>
               
               <button class="btn btn-warning me-2 " @click="clearTerminal">Clean Terminal</button>
-              <button class="btn btn-danger" @click="resetSettings">Reset to default values</button>
             </div>
 
             </div>
@@ -96,6 +95,15 @@
         <td>{{ item.readWrite }}</td>
       </tr>
     </table>
+    <div class="d-flex justify-content-end mb-3">
+      <!-- Pulsanti di esportazione, importazione e cancellazione del localStorage -->
+      <div class="export-import-buttons">
+        <button class="btn btn-info btn-sm me-2" @click="exportConfig">Export configuration</button>
+        <button class="btn btn-info btn-sm me-2" @click="triggerFileInput">Import configuration</button>
+        <input type="file" id="file-input" @change="importConfig" style="display: none" />
+        <button class="btn btn-danger btn-sm" @click="clearLocalStorage">Set configuration to default</button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -290,6 +298,67 @@ export default {
     }
   },
   methods: {
+    exportConfig() {
+      const config = {
+        mqttSettings: this.mqttSettings,
+        modbusRegisters: this.modbusRegisters
+      };
+      const configStr = JSON.stringify(config);
+      const blob = new Blob([configStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `CP-EMULATOR_configuration-${this.getTimestamp()}.json`;
+      document.body.appendChild(a); 
+      a.click(); 
+      document.body.removeChild(a); 
+    },
+
+    triggerFileInput() {
+      document.getElementById('file-input').click();
+    },
+
+    importConfig(event) {
+      const file = event.target.files[0];
+      if (file && file.type === "application/json") {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const config = JSON.parse(e.target.result);
+            if (config.mqttSettings) this.mqttSettings = config.mqttSettings;
+            if (config.modbusRegisters) this.modbusRegisters = config.modbusRegisters;
+
+            localStorage.setItem('mqttSettings', JSON.stringify(this.mqttSettings));
+
+            this.modbusRegisters.forEach(register => {
+              this.saveToStorage(register);
+            });
+
+            alert('Configuration imported successfully.');
+
+            location.reload();
+          } catch (error) {
+            alert('Failed to import configuration.');
+          }
+        };
+        reader.readAsText(file);
+      } else {
+        alert('Please select a valid JSON file.');
+      }
+
+      event.target.value = '';
+    },
+
+    clearLocalStorage() {
+      if (confirm('Are you sure you want to clear all data from local storage? This action cannot be undone.')) {
+        localStorage.clear(); 
+        alert('Local storage cleared successfully.');
+
+        location.reload(); 
+      }
+    },
+
     hex2a(hexx) {
         let hex = hexx.toString();
         let str = '';
@@ -470,7 +539,8 @@ export default {
         }
       });
     },
-    connectMqttWS() {
+    connectMqttWS(newSettings) {
+      this.handleSaveSettings(newSettings);
       if (!this.ws || this.ws.readyState > 1) {
         this.mqttMessages.push({ type: 'error', content: `${this.getTimestamp()} WebSocket not connected...` });
         this.connectToMiddleware(true);
