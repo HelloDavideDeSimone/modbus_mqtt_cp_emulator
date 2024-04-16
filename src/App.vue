@@ -2,7 +2,7 @@
   <div class="mx-5">
     <div class="mt-2">
       <h1 class="modbus-title">
-      Modbus CP Emulator - 
+      MQTT Modbus CP Emulator - 
       <input type="text" v-model="chargingPointSettings.charger_serial" placeholder="Enter Serial Number" class="serial-input"/>
       <span>Modbus Address:</span><span class="modbus-address">{{ modbusAddress }}</span>
     </h1>
