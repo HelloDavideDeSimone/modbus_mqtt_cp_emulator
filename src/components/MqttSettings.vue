@@ -65,6 +65,10 @@
                       <button class="btn btn-danger ms-2" :disabled="!mqttIsConnected" @click="disconnectFromMqttBroker">Disconnect</button>
                       <input type="text" class="form-control ms-2" id="mqttMessage" placeholder="Enter message" v-model="mqttSettings.testMessage" style="max-width: 40%;">
                       <button class="btn btn-secondary" :disabled="!mqttIsConnected" @click="publishMessage({topic: mqttSettings.responseTopic, message: mqttSettings.testMessage})">Send Test Message</button>
+                      <div class="form-check form-switch ms-4">
+                        <input class="form-check-input" type="checkbox" id="ignoreOtherModbusIds" v-model="mqttSettings.ignoreOtherModbusIds">
+                        <label class="form-check-label" for="ignoreOtherModbusIds">Ignore other Modbus IDs</label>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -81,7 +85,7 @@
     data() {
       return {
         mqttSettings: {
-          testMessage: 'Hello MQTT'
+          testMessage: 'Hello MQTT',
         }
       };
     },

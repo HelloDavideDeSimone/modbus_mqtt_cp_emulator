@@ -1,18 +1,20 @@
 <template>
   <div class="terminal-container">
+    <button @click="clearTerminal" class="clean-terminal-btn">Clean Terminal</button>
     <input type="range" min="100" max="700" v-model="terminalHeight" class="slider">
     <div class="terminal" :style="{ height: terminalHeight + 'px' }" ref="terminal" @scroll="checkScroll">
       <div class="message-info">
         <pre>
-          <h3>Charging Point Emulator</h3>   ___________
-  |  _______  |
-  | | == | | |
-  | |_____| | |
-  |  _______  |\\
-  | | == | | |  ))
-  | |_____| | |//
-__|___________|__
-|___________________|
+<p style="font-size: 10px;">                                                                                                                                   
+        _                         _                                 _         _       ______                   __         _               
+       (_)            _          (_) _                             (_) _     (_)_    (______)                 (__)       (_)_        _    
+   ___ (_)__    ____ (_)__  ____  _ (_)__    ____     ____    ___   _ (_)__  (___)   (_)__     __   __   _   _ (_)  ____ (___) ___  (_)__ 
+ _(___)(____)  (____)(____)(____)(_)(____)  (____)   (____)  (___) (_)(____) (_)     (____)   (__)_(__) (_) (_)(_) (____)(_)  (___) (____)
+(_)___ (_) (_)( )_( )(_)  ( )_(_)(_)(_) (_)( )_(_)   (_)_(_)(_)_(_)(_)(_) (_)(_)_    (_)____ (_) (_) (_)(_)_(_)(_)( )_( )(_)_(_)_(_)(_)   
+ (____)(_) (_) (__)_)(_)   (____)(_)(_) (_) (____)   (____)  (___) (_)(_) (_) (__)   (______)(_) (_) (_) (___)(___)(__)_) (__)(___) (_)   
+                          (_)_(_)          (_)_(_)   (_)                                                                                  
+                           (___)            (___)    (_)                                                                                  
+</p>
         </pre>
 {{ `${this.terminalReadyTimestamp} Terminal ready` }}
       </div>
@@ -59,6 +61,9 @@ export default {
     }
   },
   methods: {
+    clearTerminal() {
+      this.$emit('clearTerminal');
+    },
     scrollToBottom() {
       this.$nextTick(() => {
         const terminal = this.$refs.terminal;
@@ -147,12 +152,30 @@ export default {
 
 .terminal-container {
   position: relative; 
+
 }
 .scroll-to-bottom-btn {
   position: absolute; 
   bottom: 10px;
   right: 10px; 
   z-index: 100; 
+}
+
+
+.clean-terminal-btn {
+  position: absolute;
+  right: 10px; /* Posiziona il pulsante a 10px dal bordo destro del container */
+  top: 40px; /* Distanza dal top del container */
+  padding: 5px 10px;
+  background-color: #ff6347; /* Un colore evidente per il pulsante di pulizia */
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.clean-terminal-btn:hover {
+  background-color: #e55345; /* Leggera variazione di colore all'hover */
 }
 
 </style>

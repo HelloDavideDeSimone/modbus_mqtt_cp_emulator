@@ -1,40 +1,27 @@
 <template>
   <div class="mx-5">
     <div class="mt-2">
-      <h1>Modbus cp emulator</h1>
+      <h1 class="modbus-title">
+      Modbus CP Emulator - 
+      <input type="text" v-model="chargingPointSettings.charger_serial" placeholder="Enter Serial Number" class="serial-input"/>
+      <span>Modbus Address:</span><span class="modbus-address">{{ modbusAddress }}</span>
+    </h1>
 
     <div class="container-fluid">
       <!-- Resto dell'interfaccia... -->
         <div class="row">
           <div class="col-12">
-            <div class="d-flex justify-content-between"> <!-- Flex container to align button to the right -->
-              <div class="status-indicator" :class="{ 'is-connected': mqttIsConnected, 'is-disconnected': !mqttIsConnected }">
+            <MqttTerminal :messages="mqttMessages" @clearTerminal="clearTerminal"/>
+            <div class="mqtt-status-bar" :style="mqttIsConnected ? 'background-color: green' : 'background-color: red'">
               {{ mqttIsConnected ? 'MQTT Connected' : 'MQTT Disconnected' }}
-            </div>
-            <div class="d-flex justify-content-between align-items-center">
-              <div class="form-check form-switch me-4">
-                <input class="form-check-input" type="checkbox" id="ignoreOtherModbusIds" v-model="ignoreOtherModbusIds">
-                <label class="form-check-label" for="ignoreOtherModbusIds">Ignore other Modbus IDs</label>
-              </div>
-              
-              <button class="btn btn-warning" @click="clearTerminal">Clean Terminal</button>
-            </div>
 
+              <button v-if="!mqttIsConnected" class="btn-reconnect" type="button"  @click="connectMqttWS(defaultMqttSettings)">
+                <i class="fa-solid fa-arrows-rotate"></i>
+                reconnect
+              </button>
             </div>
-            <MqttTerminal :messages="mqttMessages"/>
           </div>
         </div>
-      </div>
-
-      <div class="my-4">
-          <button class="accordion-button" type="button"  @click="toggleAccordion">
-            MQTT Settings
-            <i :class="{'ms-2 fas fa-chevron-up': showAccordion, 'ms-2 fas fa-chevron-down': !showAccordion}"></i>
-          </button>
-
-          <div v-if="showAccordion" class="accordion">
-            <mqtt-settings :settings="mqttSettings" @save="handleSaveSettings" :mqttIsConnected="mqttIsConnected" @disconnectFromMqttBroker="disconnectFromMqttBrokerWS" @connectToMqttBroker="connectMqttWS" @publishMessage="m => publishMessageWS(m.topic, m.message)"></mqtt-settings>
-          </div>
       </div>
     </div>
 
@@ -42,6 +29,7 @@
       <div class="status-box col">
         <div class="rfid-value">system state: {{ systemStateText }}
           <i :class="[systemStateIcon, { 'blink-animation': systemState === 3 }]"></i>
+          <span v-if="systemState === 3">({{ currentChargingPower }})</span>
         </div>
         <div class="rfid-value">Gun state: {{ gunState }}
           <i :class="[gunState === 'Connect to EV' ? 'fas fa-charging-station' : 'fas fa-car', 'status-icon']"></i>
@@ -50,11 +38,32 @@
       </div>
 
       <div class="rfid-box col">
-        <div class="rfid-value">RFID: {{ rfid }}</div>
+        <div class="rfid-value" :class="rfid == 'NO TAG' ? 'text-danger' : 'text-success'">RFID: {{ rfid }}</div>
         <div class="rfid-actions">
-          <button class="btn btn-primary w-100" @click="swipeRFID1">Simula Swipe RFID 1</button>
-          <button class="btn btn-primary w-100" @click="swipeRFID2">Simula Swipe RFID 2</button>
-          <button class="btn btn-secondary w-100" @click="resetRFIDregister">Reset Registri RFID</button>
+          <div class="d-flex align-items-center mb-2" v-if="rfid == 'NO TAG'">
+            <select v-model="selectedRfidTagIndex" class="form-select equal-height me-2">
+              <option disabled value="">Select an RFID Tag</option>
+              <option v-for="(tag, index) in chargingPointSettings.rfidTags" :value="index" :key="index">
+                {{ tag.name }} ({{ tag.type }})
+              </option>
+            </select>
+            <button class="btn btn-primary equal-height swipe-button" @click="swipeRfid">
+              <div class="arrows-wrapper">
+                <svg class="arrows arrow1" width="24" height="24" viewBox="0 0 24 24">
+                  <polyline stroke="white" stroke-width="2" fill="none" points="2,12 18,12 15,9 18,12 15,15"></polyline>
+                </svg>
+                <svg class="arrows arrow2" width="24" height="24" viewBox="0 0 24 24">
+                  <polyline stroke="white" stroke-width="2" fill="none" points="2,12 18,12 15,9 18,12 15,15"></polyline>
+                </svg>
+                <svg class="arrows arrow3" width="24" height="24" viewBox="0 0 24 24">
+                  <polyline stroke="white" stroke-width="2" fill="none" points="2,12 18,12 15,9 18,12 15,15"></polyline>
+                </svg>
+              </div>
+              Simulate RFID Swipe
+            </button>
+
+          </div>
+          <button v-else class="btn btn-secondary w-100" @click="resetRFIDregister">Reset RFID Registers</button>
         </div>
       </div>
 
@@ -73,6 +82,17 @@
       </div>
 
     </div>
+
+    <div class="my-4">
+          <button class="accordion-button" type="button"  @click="toggleAccordion">
+            MQTT Settings
+            <i :class="{'ms-2 fas fa-chevron-up': showAccordion, 'ms-2 fas fa-chevron-down': !showAccordion}"></i>
+          </button>
+
+          <div v-if="showAccordion" class="accordion">
+            <mqtt-settings :settings="mqttSettings" @save="handleSaveSettings" :mqttIsConnected="mqttIsConnected" @disconnectFromMqttBroker="disconnectFromMqttBrokerWS" @connectToMqttBroker="connectMqttWS" @publishMessage="m => publishMessageWS(m.topic, m.message)"></mqtt-settings>
+          </div>
+      </div>
 
     <table class="table table-striped">
       <caption>Registri modbus</caption>
@@ -96,33 +116,84 @@
         <td>{{ item.readWrite }}</td>
       </tr>
     </table>
-    <div class="d-flex justify-content-end mb-3">
-      <!-- Pulsanti di esportazione, importazione e cancellazione del localStorage -->
-      <div class="export-import-buttons">
-        <button class="btn btn-info btn-sm me-2" @click="exportConfig">Export configuration</button>
-        <button class="btn btn-info btn-sm me-2" @click="triggerFileInput">Import configuration</button>
-        <input type="file" id="file-input" @change="importConfig" style="display: none" />
-        <button class="btn btn-danger btn-sm" @click="clearLocalStorage">Set configuration to default</button>
+    <div>
+
+    <RfidManager
+      :rfidTags="chargingPointSettings.rfidTags"
+      @updateGroup="updateGroup"
+      @deleteGroup="handleDeleteGroup"
+      @addNewRfidTag="addNewRfidTag"
+    />
+
+
+    <div class="status-box">
+      <h3 >Import/Export configurations</h3>
+      <div class="d-flex flex-row-reverse mb-3">
+        <div></div> <!-- Empty div for alignment -->
+        <input type="file" id="rfid-import" @change="importRfidTags" style="display: none;">
+        <button class="btn btn-sm btn-info" @click="openImportRfidTags">Import RFID Tags</button>
+        <button class="btn btn-sm btn-info me-2" @click="exportRfidTags">Export RFID Tags</button>
+      </div> 
+
+      <div class="d-flex justify-content-end">
+        <!-- Pulsanti di esportazione, importazione e cancellazione del localStorage -->
+        <div class="export-import-buttons">
+          <button class="btn btn-info btn-sm me-2" @click="exportConfig">Export configuration</button>
+          <button class="btn btn-info btn-sm me-2" @click="triggerFileInput">Import configuration</button>
+          <input type="file" id="file-input" @change="importConfig" style="display: none" />
+          <button class="btn btn-danger btn-sm" @click="clearLocalStorage">Set configuration to default</button>
+        </div>
       </div>
     </div>
+
+
+
+  </div>
   </div>
 </template>
 
 <script>
 import mqtt from 'mqtt';
 import MqttTerminal from './components/MqttTerminal.vue'
+import RfidManager from './components/RfidManager.vue';
 import MqttSettings from './components/MqttSettings.vue';
 import { hm10Logic } from './hm10Logic.js';
 
 export default {
   components: {
     MqttTerminal,
-    MqttSettings
+    MqttSettings,
+    RfidManager
   },
   mixins: [hm10Logic],
   data() {
     return {
-      ignoreOtherModbusIds: true,
+      selectedRfidTagIndex: 0,
+      chargingPointSettings: {
+        charger_serial: '',
+        rfidTags: [
+          {
+            rfidValues: [
+              { value: 12598, registerAddress: '005F' },
+              { value: 17204, registerAddress: '006F' },
+              { value: 13380, registerAddress: '007F' },
+              { value: 16952, registerAddress: '008F' },
+            ],
+            type: "master",
+            name: 'Master 1'
+          },
+        {
+          rfidValues: [
+            { value: 12595, registerAddress: '005F' },
+            { value: 17604, registerAddress: '006F' },
+            { value: 13280, registerAddress: '007F' },
+            { value: 16952, registerAddress: '008F' },
+          ],
+          type: "common",
+          name: 'Common 1'
+        },
+      ]
+      },
       wsPort: process.env.VUE_APP_WS_MQTT_MIDDLEWARE_PORT,
       wsHost: window.location.hostname,
       hasTriedToConnect: false,
@@ -144,7 +215,8 @@ export default {
         },
         qos: 2,
         requestTopic: '/modbus/PR-01_LOCAL/request',
-        responseTopic: '/modbus/PR-01_LOCAL/response'
+        responseTopic: '/modbus/PR-01_LOCAL/response',
+        ignoreOtherModbusIds: true
       },
       defaultModbusRegisters: [
             { parameter: 'Phase Voltage of L1', value: 2200, registerAddress: '0000', readWrite: 'R' , isUpdated: true, disabled: false},
@@ -246,6 +318,11 @@ export default {
     this.connectToMiddleware();
   },
   computed: {
+    currentChargingPower() {
+      const totalPower1 = this.modbusRegisters.find(r => r.registerAddress == '0034')
+      const totalPower2 = this.modbusRegisters.find(r => r.registerAddress == '0035')
+      return `${(totalPower1.value + totalPower2.value) /1000} kW`
+    },
     systemStateIcon() {
       const icons = [
         'fas fa-pause-circle', // Standby
@@ -261,6 +338,10 @@ export default {
         'fas fa-sync-alt' // Upgrading
       ];
       return icons[this.systemState];
+    },
+    modbusAddress() {
+      let register = this.modbusRegisters.find(r => r.registerAddress == '0041')
+      return register.value
     },
     faultCode() {
       let register = this.modbusRegisters.find(r => r.registerAddress == '0044')
@@ -280,46 +361,125 @@ export default {
     },
     rfid() {
       const rfidAddresses = ['005F', '006F', '007F', '008F'];
-      const ascii = []
-
+      let ascii = '';
+      let hexValues = [];
+      // Convert hex values from Modbus registers to ASCII
       rfidAddresses.forEach(address => {
-
-        let register = this.modbusRegisters.find(r => r.registerAddress == address)
-
-        const hexVal = Number(register?.value ?? 0).toString(16);
-          
-          let first = hexVal.slice(0, 2);
-          let second = hexVal.slice(2, 4);
-  
-          ascii.push(this.hex2a(second))
-          ascii.push(this.hex2a(first))
+        const register = this.modbusRegisters.find(r => r.registerAddress === address);
+        const hexValue = Number(register?.value ?? 0).toString(16).padStart(4, '0');
+        hexValues.push(hexValue);  
+        const first = hexValue.slice(0, 2);
+        const second = hexValue.slice(2, 4);
+        ascii += this.hex2a(first) + this.hex2a(second);
       });
 
-      return ascii.join('') == '\x00\x00\x00\x00' ? 'NO TAG' : ascii.join('')
+
+      if (ascii.replace(/\0/g, '') === '') return 'NO TAG';
+
+
+      const tag = this.chargingPointSettings.rfidTags.find(t => 
+        t.rfidValues.every((rfid, index) => 
+          rfid.registerAddress === rfidAddresses[index] && 
+          Number(rfid.value).toString(16).padStart(4, '0') === hexValues[index]
+        )
+      );
+        return tag ? `${ascii} (${tag.type})` : `${ascii} (Unknown Type)`;
     }
   },
   methods: {
-    exportConfig() {
-      const config = {
-        mqttSettings: this.mqttSettings,
-        modbusRegisters: this.modbusRegisters
-      };
-      const configStr = JSON.stringify(config);
-      const blob = new Blob([configStr], { type: 'application/json' });
+    exportRfidTags() {
+      const rfidData = JSON.stringify(this.chargingPointSettings.rfidTags);
+      const blob = new Blob([rfidData], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
-
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `CP-EMULATOR_configuration-${this.getTimestamp()}.json`;
-      document.body.appendChild(a); 
-      a.click(); 
-      document.body.removeChild(a); 
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `rfidTags-${this.chargingPointSettings?.charger_serial}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
     },
+    importRfidTags(event) {
+      const file = event.target.files[0];
+      if (file && file.type === "application/json") {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const rfidTags = JSON.parse(e.target.result);
+            if (Array.isArray(rfidTags)) {
+              this.chargingPointSettings.rfidTags = rfidTags;
+              alert('RFID tags imported successfully.');
+            } else {
+              throw new Error('Invalid RFID tag data.');
+            }
+          } catch (error) {
+            alert('Failed to import RFID tags.');
+          }
+        };
+        reader.readAsText(file);
+      } else {
+        alert('Please select a valid JSON file.');
+      }
+      // Clear the input after file selection
+      event.target.value = '';
+    },
+    addNewRfidTag() {
+      const newTag = {
+        name: 'New Tag',
+        type: 'common', 
+        rfidValues: [
+          { value: 0, registerAddress: '005F' },
+          { value: 0, registerAddress: '006F' },
+          { value: 0, registerAddress: '007F' },
+          { value: 0, registerAddress: '008F' },
+        ]
+      };
 
+      // Aggiungi il nuovo tag all'array rfidTags
+      this.chargingPointSettings.rfidTags.push(newTag);
+      console.log('New RFID tag added:', newTag);
+    },
+    updateGroup(payload) {
+      const { groupIndex, newGroup } = payload;
+      this.chargingPointSettings.rfidTags[groupIndex] = {...this.chargingPointSettings.rfidTags[groupIndex], ...newGroup};
+    },
+    handleDeleteGroup(groupIndex) {
+      this.chargingPointSettings.rfidTags.splice(groupIndex, 1);
+    },
     triggerFileInput() {
       document.getElementById('file-input').click();
     },
+    openImportRfidTags() {
+      document.getElementById('rfid-import').click();
 
+    },
+    exportConfig() {
+      const configData = {
+        mqttSettings: this.mqttSettings,
+        modbusRegisters: this.modbusRegisters,
+        chargingPointSettings: this.chargingPointSettings
+      };
+
+      // Converti l'oggetto in una stringa JSON
+      const jsonString = JSON.stringify(configData);
+
+      // Crea un Blob con i dati
+      const blob = new Blob([jsonString], { type: 'application/json' });
+
+      // Genera un URL dal Blob
+      const url = URL.createObjectURL(blob);
+
+      // Crea un elemento <a> e imposta l'URL e il nome del file
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Config-${new Date().toISOString()}.json`;
+
+      // Appendi l'elemento al body, triggera il click e rimuovilo
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Revoca l'URL del Blob
+      URL.revokeObjectURL(url);
+    },
     importConfig(event) {
       const file = event.target.files[0];
       if (file && file.type === "application/json") {
@@ -329,8 +489,10 @@ export default {
             const config = JSON.parse(e.target.result);
             if (config.mqttSettings) this.mqttSettings = config.mqttSettings;
             if (config.modbusRegisters) this.modbusRegisters = config.modbusRegisters;
+            if (config.chargingPointSettings) this.chargingPointSettings = config.chargingPointSettings;
 
             localStorage.setItem('mqttSettings', JSON.stringify(this.mqttSettings));
+            localStorage.setItem('chargingPointSettings', JSON.stringify(this.chargingPointSettings));
 
             this.modbusRegisters.forEach(register => {
               this.saveToStorage(register);
@@ -398,10 +560,10 @@ export default {
       timeFields.forEach((field) => {
         const register = this.modbusRegisters.find(r => r.registerAddress === field.registerAddress);
         if (register) {
-          const newValue = field.value.toString(); // Assumi che i valori nel local storage siano stringhe
+          const newValue = field.value.toString(); 
           if (register.value !== newValue) {
-            register.value = newValue; // Aggiorna il valore del registro con quello nuovo
-            this.triggerAnimation(register); // Avvia l'animazione per indicare l'aggiornamento
+            register.value = newValue; 
+            this.triggerAnimation(register);
           }
         }
       });
@@ -420,31 +582,17 @@ export default {
       let systemRegister = this.modbusRegisters.find(r => r.registerAddress == '0045')
       systemRegister.value = 0
     },
-    swipeRFID1(){
-      const rfidValues = [
-        { parameter: 'RFID Number 0', value: 12598, registerAddress: '005F', readWrite: 'R', isUpdated: false, disabled: false },
-        { parameter: 'RFID Number 1', value: 17204, registerAddress: '006F', readWrite: 'R', isUpdated: false, disabled: false },
-        { parameter: 'RFID Number 2', value: 13380, registerAddress: '007F', readWrite: 'R', isUpdated: false, disabled: false },
-        { parameter: 'RFID Number 3', value: 16952, registerAddress: '008F', readWrite: 'R', isUpdated: false, disabled: false },
-      ];
-
-      rfidValues.forEach(rfid => {
-        this.writeToRegister(rfid.registerAddress, rfid.value);
-      });
-
-    },
-    swipeRFID2(){
-      const rfidValues = [
-        { parameter: 'RFID Number 0', value: 12358, registerAddress: '005F', readWrite: 'R', isUpdated: false, disabled: false },
-        { parameter: 'RFID Number 1', value: 17477, registerAddress: '006F', readWrite: 'R', isUpdated: false, disabled: false },
-        { parameter: 'RFID Number 2', value: 12868, registerAddress: '007F', readWrite: 'R', isUpdated: false, disabled: false },
-        { parameter: 'RFID Number 3', value: 16952, registerAddress: '008F', readWrite: 'R', isUpdated: false, disabled: false },
-      ];
-
-      rfidValues.forEach(rfid => {
-        this.writeToRegister(rfid.registerAddress, rfid.value);
-      });
-
+    swipeRfid(){
+      console.log(this.selectedRfidTagIndex )
+      if (this.selectedRfidTagIndex !== '' && this.chargingPointSettings.rfidTags[this.selectedRfidTagIndex]) {
+        const selectedRfid = this.chargingPointSettings.rfidTags[this.selectedRfidTagIndex];
+        console.log(this.selectedRfidTagIndex )
+        selectedRfid.rfidValues.forEach(rfid => {
+          this.writeToRegister(rfid.registerAddress, rfid.value);
+        });
+      } else {
+        alert("Seleziona un RFID Tag valido.");
+      }
     },
     resetRFIDregister(){
       const rfidAddresses = ['005F', '006F', '007F', '008F'];
@@ -458,8 +606,7 @@ export default {
       const register = this.modbusRegisters.find(reg => reg.registerAddress === address);
       if (register) {
         register.value = value;
-        console.log( `Write to ${address}:${value}` );
-        register.isUpdated = true; // Se vuoi tracciare che il registro è stato aggiornato
+        register.isUpdated = true;
       }
     },
     resetSettings() {
@@ -493,6 +640,11 @@ export default {
                 register.value = savedValue;
             }
         });
+
+      const chargingPointSettings = localStorage.getItem('chargingPointSettings');
+        if (chargingPointSettings !== null) {
+            this.chargingPointSettings = JSON.parse(chargingPointSettings);
+        }
     },
     saveToStorage(item) {
       localStorage.setItem(item.registerAddress, item.value);
@@ -578,7 +730,6 @@ export default {
       }
     },
     handleIncomingMessage(data) {
-      console.log("handleIncomingMessage", data)
       switch(data.action) {
         case 'mqttConnected':
           this.mqttIsConnected = true;
@@ -674,11 +825,41 @@ export default {
         this.disconnectEV()
       }, 3000);
     },
+    manageChangePower(mqttMessage, startIndex) {
+      console.log("manage change power", mqttMessage, startIndex)
+
+      const chargingPowerOfL11 = this.modbusRegisters.find(r => r.registerAddress == '002E')
+      const chargingPowerOfL12 = this.modbusRegisters.find(r => r.registerAddress == '002F')
+      const chargingPowerOfL21 = this.modbusRegisters.find(r => r.registerAddress == '0030')
+      const chargingPowerOfL22 = this.modbusRegisters.find(r => r.registerAddress == '0031')
+      const chargingPowerOfL31 = this.modbusRegisters.find(r => r.registerAddress == '0032')
+      const chargingPowerOfL32 = this.modbusRegisters.find(r => r.registerAddress == '0033')
+
+      const totalPower1 = this.modbusRegisters.find(r => r.registerAddress == '0034')
+      const totalPower2 = this.modbusRegisters.find(r => r.registerAddress == '0035')
+      const limitCurrentRegister = this.modbusRegisters.find(r => r.registerAddress == '0005')
+      const limitInWatt = (limitCurrentRegister.value /10) * 220 * (this.isThreePhase ? 3 : 1)
+
+      console.log("limitInWatt", limitInWatt, limitCurrentRegister.value);
+      this.writeToRegister(chargingPowerOfL11.registerAddress , 0)
+      this.writeToRegister(chargingPowerOfL12.registerAddress , limitInWatt)
+      if(this.isThreePhase){
+        this.writeToRegister(chargingPowerOfL11.registerAddress , 0)
+        this.writeToRegister(chargingPowerOfL12.registerAddress , limitInWatt/3)
+        this.writeToRegister(chargingPowerOfL21.registerAddress , 0)
+        this.writeToRegister(chargingPowerOfL22.registerAddress , limitInWatt/3)
+
+        this.writeToRegister(chargingPowerOfL31.registerAddress , 0)
+        this.writeToRegister(chargingPowerOfL32.registerAddress , limitInWatt/3)
+      }
+
+      this.writeToRegister(totalPower1.registerAddress , 0)
+      this.writeToRegister(totalPower2.registerAddress , limitInWatt)
+
+    },
     manageStartStopCharging(mqttMessage, startIndex) {
       console.log("manage start Stop charging")
 
-
-      
       let statusRegister = this.modbusRegisters.find(r => r.registerAddress == '0045')
       let chargingRegister = this.modbusRegisters.find(r => r.registerAddress == '0004')
 
@@ -707,7 +888,7 @@ export default {
         const limitCurrentRegister = this.modbusRegisters.find(r => r.registerAddress == '0005')
         const limitInWatt = (limitCurrentRegister.value /10) * 220 * (this.isThreePhase ? 3 : 1)
 
-        console.log("limitInWatt", limitInWatt, limitCurrentRegister.value);
+        console.log("limitInWatt ", limitInWatt, limitCurrentRegister.value);
         this.writeToRegister(chargingPowerOfL11.registerAddress , 0)
         this.writeToRegister(chargingPowerOfL12.registerAddress , limitInWatt)
         if(this.isThreePhase){
@@ -739,7 +920,6 @@ export default {
       }
     },
     handleMqttMessage(topic, message) {
-      console.log("handleMqttMessage", topic, message)
       if(topic !== this.mqttSettings.responseTopic) {
         const mqttMessage = this.parseModbusString(message)
         if(!mqttMessage) {
@@ -756,7 +936,7 @@ export default {
                 for (let i = 0; i < mqttMessage.registerCountOrValues && (startIndex + i) < this.modbusRegisters.length; i++) {
                   valuesToReturn += ` ${(this.modbusRegisters[startIndex + i].value)}`;
                 }
-                console.log("publishMessageWS", this.mqttSettings.responseTopic, `${mqttMessage.cookie} OK${valuesToReturn}`);
+
                 this.publishMessageWS(this.mqttSettings.responseTopic, `${mqttMessage.cookie} OK${valuesToReturn}`);
                 break;
 
@@ -781,9 +961,9 @@ export default {
                 }
 
                 if(mqttMessage.firstRegister == 68) {
+                  console.log("START", mqttMessage)
                   this.manageStartStopCharging(mqttMessage, startIndex);
                 }
-
 
 
                 break;
@@ -792,11 +972,16 @@ export default {
                 console.log(`Funzione Modbus ${mqttMessage.modbusFunction} non gestita`);
                 break;
             }
+
+            if(mqttMessage.firstRegister == 6) {
+              this.manageChangePower(mqttMessage, startIndex);
+            }
+
           } else {
             console.log("Indice di partenza non valido.");
           }
         } else {
-          if(!this.ignoreOtherModbusIds) {
+          if(!this.mqttSettings?.ignoreOtherModbusIds) {
             this.mqttMessages.push({ type: 'received', content: `${this.getTimestamp()} Received from ${topic}: ${message} [modbus id unrecognized!]` });
 
           }
@@ -885,6 +1070,12 @@ export default {
         }
       },
       deep: true 
+    },
+    chargingPointSettings: {
+      deep: true,
+      handler(val) {
+        localStorage.setItem('chargingPointSettings', JSON.stringify(val));
+      }
     }
   },
 };
@@ -1037,10 +1228,6 @@ th, td {
   margin-top: 20px; /* Spazio sopra lo switch */
 }
 
-.charging-mode-switch input[type="checkbox"] {
-  /* Personalizza lo stile dello switch se necessario */
-}
-
 .charging-mode-switch label {
   margin-left: 8px; /* Spazio tra lo switch e la label */
 }
@@ -1055,6 +1242,111 @@ th, td {
 .blink-animation {
   color: green;
   animation: blink 2s linear infinite;
+}
+
+.modbus-title {
+  font-size: 1.5em; /* Dimensione del font per il titolo */
+  color: #333; /* Colore del testo */
+  display: flex; /* Utilizzo di Flexbox per allineare i contenuti */
+  align-items: center; /* Centra verticalmente i contenuti */
+  gap: 10px; /* Spazio tra i contenuti */
+}
+
+.serial-input {
+  padding: 5px 10px; /* Padding per l'input */
+  border: 2px solid #007bff; /* Bordo blu */
+  border-radius: 5px; /* Bordi arrotondati */
+  font-size: 1em; /* Dimensione del font coerente con il titolo */
+  outline: none; /* Rimuove l'outline al focus per una migliore estetica */
+}
+
+.serial-input:focus {
+  border-color: #0056b3; /* Cambia il colore del bordo quando l'input è focalizzato */
+}
+
+.modbus-address {
+  background-color: #007bff; /* Sfondo blu */
+  color: white; /* Testo bianco */
+  padding: 2px 8px; /* Padding */
+  border-radius: 5px; /* Bordi arrotondati */
+  font-weight: bold; /* Testo in grassetto */
+}
+
+.equal-height {
+  height: 38px;  /* Standard height to match the select */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Specific styles for the button to ensure content fits */
+.btn.equal-height {
+  padding: 3px 12px; /* Reduced padding to allow more space for text */
+  font-size: 12px; /* Adjust font size as necessary */
+  line-height: 1.5; /* Ensure text is vertically centered */
+}
+
+.rfid-actions .d-flex.mb-2 {
+  align-items: center;
+}
+
+
+
+.swipe-button {
+  position: relative;
+  overflow: hidden; /* Keeps the arrows within the button */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.5rem; /* Ensure there's enough padding */
+  color: white;
+  background-color: #007bff;
+  border: none;
+}
+
+.arrows-wrapper {
+  top: 8px;
+  display: flex;
+  height: 100%;
+  position: absolute;
+  left: 0; /* Start from the left */
+}
+
+.arrows {
+  animation: slide 2s linear infinite;
+}
+
+.arrow2 {
+  animation-delay: 0s; /* Starts half way through the animation cycle */
+}
+
+@keyframes slide {
+  0% {
+    transform: translateX(-300%);
+  }
+  100% {
+    transform: translateX(500%);
+  }
+}
+
+
+
+.mqtt-status-bar {
+  width: 100%; /* Same as the terminal */
+  padding: 5px 10px;
+  color: white; /* Text color */
+  text-align: center; /* Center the text */
+  border-radius: 0; /* No rounded corners */
+  font-size: 11px;
+  font-weight: bold; /* Bold text */
+}
+
+.btn-reconnect {
+  height: 16px;
+  padding: 0 5px;
+  margin: 0;
+  top: 0;
+  border: 0;
 }
 </style>
 
