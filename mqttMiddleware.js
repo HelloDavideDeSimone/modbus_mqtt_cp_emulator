@@ -10,7 +10,7 @@ const wss = new WebSocket.Server({
 let mqttSettings = null;
 
 function getTimestamp() {
-    return `${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()} |`;
+    return `${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}.${new Date().getMilliseconds()} |`;
 }
 
 wss.on('connection', (ws) => {
