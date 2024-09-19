@@ -989,7 +989,7 @@ export default {
       }
     },
     getTimestamp() {
-      return  `${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`;
+      return `${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}.${new Date().getMilliseconds()}`;
     },
     publishMessage_deprecated(topic, message) {
       if (this.mqttClient) {
