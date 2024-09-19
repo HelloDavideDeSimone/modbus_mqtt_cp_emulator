@@ -39,7 +39,7 @@ export default {
   data() {
     return {
       terminalHeight: 200,
-      terminalReadyTimestamp: `${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`,
+      terminalReadyTimestamp: `${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}.${new Date().getMilliseconds()}`,
       isScrolledToBottom: true,
     };
   },
