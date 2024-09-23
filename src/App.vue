@@ -15,7 +15,7 @@
             <div class="mqtt-status-bar" :style="mqttIsConnected ? 'background-color: green' : 'background-color: red'">
               {{ mqttIsConnected ? 'MQTT Connected' : 'MQTT Disconnected' }}
 
-              <button v-if="!mqttIsConnected" class="btn-reconnect" type="button"  @click="connectMqttWS(defaultMqttSettings)">
+              <button v-if="!mqttIsConnected" class="btn-reconnect" type="button"  @click="connectMqttWS(mqttSettings)">
                 <i class="fa-solid fa-arrows-rotate"></i>
                 reconnect
               </button>
