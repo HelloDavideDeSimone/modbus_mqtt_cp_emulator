@@ -1,9 +1,10 @@
 # Modbus CP Emulator README
+![Screenshot 2024-10-09 alle 14 54 36](https://github.com/user-attachments/assets/f66dd108-979a-4328-92ca-697bbef3aa8b)
 
 ## Overview
 The Modbus CP Emulator is a Vue.js application designed to simulate a Modbus control panel, enabling users to interact with Modbus registers, monitor system states, and manage MQTT connections for real-time data exchange. This emulator is particularly useful for developers and testers who need to emulate Modbus devices without the need for actual hardware, facilitating testing, debugging, and development of Modbus-based applications.
 
-## Features
+## Features
 Modbus Register Interaction: Simulate read and write operations on Modbus registers.
 System State Monitoring: View real-time updates on system, gun, and fault states.
 RFID Tag Simulation: Simulate swiping an RFID tag and resetting RFID registers.
@@ -11,7 +12,7 @@ MQTT Connectivity: Manage MQTT settings, connect/disconnect to a broker, and pub
 Real-time Updates: See immediate feedback from simulated operations and MQTT messages.
 Responsive Design: A user-friendly interface that adapts to different screen sizes.
 
-## Setup
+## Setup
 Requirements
 - Node.js (preferably the latest LTS version)
 - An MQTT broker running locally or accessible over the network
@@ -47,7 +48,7 @@ Connect/Disconnect: Use the buttons to manage your connection to the MQTT broker
 ### Customization
 The Modbus registers and MQTT settings are configurable, allowing for a tailored simulation experience. You can modify the defaultModbusRegisters and defaultMqttSettings objects in the main Vue component to fit your testing scenarios.
 
-## Contributing
+## Contributing
 Contributions are welcome! Please feel free to submit pull requests with bug fixes or enhancements.
 
 ## License
