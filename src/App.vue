@@ -72,8 +72,8 @@
 
         <div class="charging-mode-select">
           <select :disabled="gunState != 'Disconnect to EV'" v-model="isThreePhase" @change="toggleChargingMode" class="form-select w-100">
-            <option :value="false">Ricarica Monofase</option>
-            <option :value="true">Ricarica Trifase</option>
+            <option :value="false">Single-Phase</option>
+            <option :value="true">Three-Phase</option>
           </select>
         </div>
         
@@ -95,7 +95,7 @@
       </div>
 
     <table class="table table-striped">
-      <caption>Registri modbus</caption>
+      <caption>Modbus registers</caption>
       <tr>
         <th scope="col">Parameter</th>
         <th scope="col">Value</th>
